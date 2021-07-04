@@ -83,19 +83,68 @@ Resources:
       IntegrationUri: 
         Fn::Sub:
             arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SendMessageFunction.Arn}/invocations
+  GameStartRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SimpleChatWebSocket
+      RouteKey: game_start
+      AuthorizationType: NONE
+      OperationName: GameStartRoute
+      Target: !Join
+        - '/'
+        - - 'integrations'
+          - !Ref GameStartInteg
+  GameStartInteg:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref SimpleChatWebSocket
+      Description: Send Integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri: 
+        Fn::Sub:
+            arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GameStartFunction.Arn}/invocations
+  CheckPassRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref SimpleChatWebSocket
+      RouteKey: check_pass
+      AuthorizationType: NONE
+      OperationName: CheckPassRoute
+      Target: !Join
+        - '/'
+        - - 'integrations'
+          - !Ref CheckPassInteg
+  CheckPassInteg:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref SimpleChatWebSocket
+      Description: Send Integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri: 
+        Fn::Sub:
+            arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CheckPassFunction.Arn}/invocations
   Deployment:
     Type: AWS::ApiGatewayV2::Deployment
     DependsOn:
     - ConnectRoute
     - SendRoute
+    - GameStartRoute
+    - CheckPassRoute
     - DisconnectRoute
     Properties:
       ApiId: !Ref SimpleChatWebSocket
-  Stage:
+  StageProd:
     Type: AWS::ApiGatewayV2::Stage
     Properties:
       StageName: Prod
       Description: Prod Stage
+      DeploymentId: !Ref Deployment
+      ApiId: !Ref SimpleChatWebSocket
+  StageDev:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName: Dev
+      Description: Dev Stage
       DeploymentId: !Ref Deployment
       ApiId: !Ref SimpleChatWebSocket
   ConnectionsTable:
@@ -182,6 +231,60 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref SendMessageFunction
       Principal: apigateway.amazonaws.com
+  GameStartFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: gamestart/
+      Handler: app.handler
+      MemorySize: 256
+      Runtime: nodejs12.x
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableName
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName: !Ref TableName
+      - Statement:
+        - Effect: Allow
+          Action:
+          - 'execute-api:ManageConnections'
+          Resource:
+          - !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SimpleChatWebSocket}/*'
+  GameStartPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - SimpleChatWebSocket
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref GameStartFunction
+      Principal: apigateway.amazonaws.com
+  CheckPassFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: checkpass/
+      Handler: app.handler
+      MemorySize: 256
+      Runtime: nodejs12.x
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref TableName
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName: !Ref TableName
+      - Statement:
+        - Effect: Allow
+          Action:
+          - 'execute-api:ManageConnections'
+          Resource:
+          - !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SimpleChatWebSocket}/*'
+  CheckPassPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - SimpleChatWebSocket
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CheckPassFunction
+      Principal: apigateway.amazonaws.com
 
 Outputs:
   ConnectionsTableArn:
@@ -199,7 +302,15 @@ Outputs:
   SendMessageFunctionArn:
     Description: "SendMessage function ARN"
     Value: !GetAtt SendMessageFunction.Arn
+  
+  GameStartFunctionArn:
+    Description: "GameStart function ARN"
+    Value: !GetAtt GameStartFunction.Arn
+  
+  CheckPassFunctionArn:
+    Description: "CheckPass function ARN"
+    Value: !GetAtt CheckPassFunction.Arn
 
   WebSocketURI:
     Description: "The WSS Protocol URI to connect to"
-    Value: !Join [ '', [ 'wss://', !Ref SimpleChatWebSocket, '.execute-api.',!Ref 'AWS::Region','.amazonaws.com/',!Ref 'Stage'] ]
+    Value: !Join [ '', [ 'wss://', !Ref SimpleChatWebSocket, '.execute-api.',!Ref 'AWS::Region','.amazonaws.com/',!Ref 'StageDev'] ]
