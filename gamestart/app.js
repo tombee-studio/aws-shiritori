@@ -10,16 +10,16 @@ const { TABLE_NAME } = process.env;
 exports.handler = async event => {
   let connectionFromId = event.requestContext.connectionId;
   let connectionData;
-  
+
   try {
-    connectionData = await ddb.scan({ 
-      TableName: TABLE_NAME, 
-      ProjectionExpression: 'connectionId' 
+    connectionData = await ddb.scan({
+      TableName: TABLE_NAME,
+      ProjectionExpression: 'connectionId'
     }).promise();
   } catch (e) {
     return { statusCode: 500, body: e.stack };
   }
-  
+
   const apigwManagementApi = new AWS.ApiGatewayManagementApi({
     apiVersion: '2018-11-29',
     endpoint: event.requestContext.domainName + '/' + event.requestContext.stage
@@ -40,13 +40,39 @@ exports.handler = async event => {
     ReturnValues:"UPDATED_NEW"
   };
 
-  ddb.update(params, (err, data) => {
-    if (err) {
-      console.error("Unable to update item. Error JSON:", JSON.stringify(err, null, 2));
-    } else {
-      console.log("UpdateItem succeeded:", JSON.stringify(data, null, 2));
+  await ddb.update(params).promise();
+  connectionData = await ddb.scan({
+    TableName: TABLE_NAME,
+    ProjectionExpression: 'connectionId, #st, #idx',
+    ExpressionAttributeNames: {
+      "#st": "status",
+      "#idx": "index",
+    },
+  }).promise();
+
+  if(!(connectionData.Items.every(item => item.status == "ready")
+    && connectionData.Items.length > 2)) return { statusCode: 200, body: 'Data sent.' };
+
+  const postCalls = connectionData.Items.map(async ({ connectionId }) => {
+    try {
+      await apigwManagementApi.postToConnection({
+        ConnectionId: connectionId,
+        Data: "game start"
+      }).promise();
+    } catch (e) {
+      if (e.statusCode === 410) {
+        console.log(`Found stale connection, deleting ${connectionId}`);
+        await ddb.delete({ TableName: TABLE_NAME, Key: { connectionId } }).promise();
+      } else {
+        throw e;
+      }
     }
   });
 
+  try {
+    await Promise.all(postCalls);
+  } catch (e) {
+    return { statusCode: 500, body: e.stack };
+  }
   return { statusCode: 200, body: 'Data sent.' };
 };
