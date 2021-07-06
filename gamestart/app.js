@@ -41,6 +41,7 @@ exports.handler = async event => {
   };
 
   await ddb.update(params).promise();
+
   connectionData = await ddb.scan({
     TableName: TABLE_NAME,
     ProjectionExpression: 'connectionId, #st, #idx',
@@ -52,6 +53,24 @@ exports.handler = async event => {
 
   if(!(connectionData.Items.every(item => item.status == "ready")
     && connectionData.Items.length > 2)) return { statusCode: 200, body: 'Data sent.' };
+
+  await Promise.all([...Array(connectionData.Items.length).keys()].map(value => {
+    var params = {
+      TableName: process.env.TABLE_NAME,
+      Key: {
+          "connectionId": connectionData.Items[value].connectionId
+      },
+      UpdateExpression: "set #idx = :r",
+      ExpressionAttributeNames: {
+        '#idx' : 'index'
+      },
+      ExpressionAttributeValues: {
+          ":r": value
+      },
+      ReturnValues:"UPDATED_NEW"
+    };
+    return ddb.update(params).promise();
+  }));
 
   const postCalls = connectionData.Items.map(async ({ connectionId }) => {
     try {

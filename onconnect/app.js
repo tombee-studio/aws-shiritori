@@ -11,7 +11,7 @@ exports.handler = async event => {
     Item: {
       connectionId: event.requestContext.connectionId,
       status: "preparing",
-      index: 0,
+      index: -1,
     }
   };
 

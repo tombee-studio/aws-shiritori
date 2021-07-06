@@ -8,39 +8,45 @@ const ddb = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10', region: 
 const { TABLE_NAME } = process.env;
 
 exports.handler = async event => {
-  let connectionData;
-  
-  try {
-    connectionData = await ddb.scan({ TableName: TABLE_NAME, ProjectionExpression: 'connectionId' }).promise();
-  } catch (e) {
-    return { statusCode: 500, body: e.stack };
-  }
-  
+  let connectionId = event.requestContext.connectionId;
   const apigwManagementApi = new AWS.ApiGatewayManagementApi({
     apiVersion: '2018-11-29',
     endpoint: event.requestContext.domainName + '/' + event.requestContext.stage
   });
-  
-  const postData = JSON.parse(event.body).data;
-  
-  const postCalls = connectionData.Items.map(async ({ connectionId }) => {
-    try {
-      await apigwManagementApi.postToConnection({ ConnectionId: connectionId, Data: postData }).promise();
-    } catch (e) {
-      if (e.statusCode === 410) {
-        console.log(`Found stale connection, deleting ${connectionId}`);
-        await ddb.delete({ TableName: TABLE_NAME, Key: { connectionId } }).promise();
-      } else {
-        throw e;
-      }
-    }
-  });
-  
-  try {
-    await Promise.all(postCalls);
-  } catch (e) {
-    return { statusCode: 500, body: e.stack };
-  }
+  let connectionData = await ddb.scan({
+    TableName: TABLE_NAME,
+    ProjectionExpression: 'connectionId, #st, #idx',
+    ExpressionAttributeNames: {
+      "#st": "status",
+      "#idx": "index",
+    },
+  }).promise();
 
+  let current = await ddb.get({
+    TableName: process.env.TABLE_NAME,
+      Key: {
+          "connectionId": connectionId
+      },
+  }).promise();
+
+  let nextIndex = current.Item.index + 1 >= connectionData.Items.map(
+    status => { return status == "ready"; }).length ? 0 : current.Item.index + 1;
+
+  await Promise.all(connectionData.Items.map(({connectionId, index}) => {
+    if(index == nextIndex)
+      return apigwManagementApi.postToConnection({
+        ConnectionId: connectionId,
+        Data: JSON.stringify({
+          "name": "your_turn"
+        })
+      }).promise();
+    else
+      return apigwManagementApi.postToConnection({
+        ConnectionId: connectionId,
+        Data: JSON.stringify({
+          "name": "not_your_turn"
+        })
+      }).promise();
+  }));
   return { statusCode: 200, body: 'Data sent.' };
 };
