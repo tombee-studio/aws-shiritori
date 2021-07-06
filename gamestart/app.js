@@ -72,12 +72,32 @@ exports.handler = async event => {
     return ddb.update(params).promise();
   }));
 
-  const postCalls = connectionData.Items.map(async ({ connectionId }) => {
+  connectionData = await ddb.scan({
+    TableName: TABLE_NAME,
+    ProjectionExpression: 'connectionId, #st, #idx',
+    ExpressionAttributeNames: {
+      "#st": "status",
+      "#idx": "index",
+    },
+  }).promise();
+
+  const postCalls = connectionData.Items.map(async ({ connectionId, index }) => {
     try {
-      await apigwManagementApi.postToConnection({
-        ConnectionId: connectionId,
-        Data: "game start"
-      }).promise();
+      if(index == 0) {
+        await apigwManagementApi.postToConnection({
+          ConnectionId: connectionId,
+          Data: JSON.stringify({
+            "name": "your_turn"
+          })
+        }).promise();
+      } else {
+        await apigwManagementApi.postToConnection({
+          ConnectionId: connectionId,
+          Data: JSON.stringify({
+            "name": "not_your_turn"
+          })
+        }).promise();
+      }
     } catch (e) {
       if (e.statusCode === 410) {
         console.log(`Found stale connection, deleting ${connectionId}`);
