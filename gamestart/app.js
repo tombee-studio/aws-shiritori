@@ -113,7 +113,8 @@ exports.handler = async event => {
           ConnectionId: connectionId,
           Data: JSON.stringify({
             "name": "not_your_turn",
-            "data": connectionData.Items
+            "data": connectionData.Items,
+            "current": connectionData.Items.find(item => item.index == 0),
           })
         }).promise();
       }

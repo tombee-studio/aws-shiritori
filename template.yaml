@@ -7,6 +7,11 @@ Description: >
   functions needed to demonstrate the Websocket protocol on API Gateway.
 
 Parameters:
+  S3BucketName:
+    Type: String
+    Default: 'multilingual-s3'
+    Description: "S3 bucket to create."
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9_-]*"
   TableName:
     Type: String
     Default: 'simplechat_connections'
@@ -147,6 +152,15 @@ Resources:
       Description: Dev Stage
       DeploymentId: !Ref Deployment
       ApiId: !Ref SimpleChatWebSocket
+  SampleS3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Ref S3BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: False
+        BlockPublicPolicy: False
+        IgnorePublicAcls: False
+        RestrictPublicBuckets: False
   ConnectionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -272,9 +286,12 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref TableName
+          S3_BUCKET_NAME: !Ref S3BucketName
       Policies:
       - DynamoDBCrudPolicy:
           TableName: !Ref TableName
+      - S3CrudPolicy:
+          BucketName: !Ref S3BucketName
       - Statement:
         - Effect: Allow
           Action:

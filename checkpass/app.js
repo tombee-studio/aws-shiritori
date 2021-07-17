@@ -2,10 +2,38 @@
 // SPDX-License-Identifier: MIT-0
 
 const AWS = require('aws-sdk');
+const buffer = require('buffer');
 
 const ddb = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10', region: process.env.AWS_REGION });
+const s3 = new AWS.S3({apiVersion: '2012-08-10', region: process.env.AWS_REGION });
 
-const { TABLE_NAME } = process.env;
+const { TABLE_NAME, S3_BUCKET_NAME } = process.env;
+
+async function checkPassFunction(event) {
+  if(!event.backet || !event.filename || !event.target || !event.origin) 
+    return "invaild arguments";
+  const v = Math.floor(Math.random() * 100);
+  
+  if(v == 99) {
+      return {
+          "name": "lose",
+          "word": "<string>",
+          "translated":"<string>"
+      };
+  } else if(v > 45) {
+      return {
+          "name": "ok",
+          "word": "<string>",
+          "translated":"<string>"
+      };
+  } else {
+      return {
+          "name": "again",
+          "word": "<string>",
+          "translated":"<string>"
+      };
+  }
+};
 
 exports.handler = async event => {
   let connectionId = event.requestContext.connectionId;
@@ -33,25 +61,82 @@ exports.handler = async event => {
   let nextIndex = current.Item.index + 1 >= connectionData.Items.map(
     status => { return status == "ready"; }).length ? 0 : current.Item.index + 1;
 
-  await Promise.all(connectionData.Items.map(({connectionId, index}) => {
-    if(index == nextIndex)
-      return apigwManagementApi.postToConnection({
-        ConnectionId: connectionId,
-        Data: JSON.stringify({
-          "name": "your_turn",
-          "data": connectionData.Items,
-          "from": connectionData.Items.find(item => item.index == currentIndex),
-          "to": connectionData.Items.find(item => item.index == nextIndex)
-        })
-      }).promise();
+  var params = {
+    Bucket: S3_BUCKET_NAME, 
+    Key: 'key.webm', 
+    Body: buffer.Buffer.from(JSON.parse(event.body).data.result.split(",")[1], 'base64')
+  };
+  const req = JSON.parse(event.body).data;
+  const data = await s3.upload(params).promise();
+
+  const v = await checkPassFunction({
+    'backet': data.Bucket,
+    'filename': data.Key,
+    'target': req.to.lang,
+    'origin': req.from.lang,
+  });
+
+  if(v.name == 'ok') {
+    await apigwManagementApi.postToConnection({
+      ConnectionId: event.requestContext.connectionId,
+      Data: JSON.stringify({
+        "name": "ok",
+        "word": v.word,
+        "translated": v.translated
+      })
+    }).promise();
+    await Promise.all(connectionData.Items.map(({connectionId, index}) => {
+      if(index == nextIndex)
+        return apigwManagementApi.postToConnection({
+          ConnectionId: connectionId,
+          Data: JSON.stringify({
+            "name": "your_turn",
+            "data": connectionData.Items,
+            "from": connectionData.Items.find(item => item.index == currentIndex),
+            "to": connectionData.Items.find(item => item.index == nextIndex)
+          })
+        }).promise();
     else
       return apigwManagementApi.postToConnection({
         ConnectionId: connectionId,
         Data: JSON.stringify({
           "name": "not_your_turn",
-          "data": connectionData.Items
+          "data": connectionData.Items,
+          "current": connectionData.Items.find(item => item.index == nextIndex),
         })
       }).promise();
-  }));
+    }));
+  }
+  else if(v.name == 'again') {
+    await apigwManagementApi.postToConnection({
+      ConnectionId: event.requestContext.connectionId,
+      Data: JSON.stringify({
+        "name": "again",
+        "word": v.word,
+        "translated": v.translated
+      })
+    }).promise();
+    await Promise.all(connectionData.Items.map(({connectionId, index}) => {
+      if(index == currentIndex)
+        return apigwManagementApi.postToConnection({
+          ConnectionId: connectionId,
+          Data: JSON.stringify({
+            "name": "your_turn",
+            "data": connectionData.Items,
+            "from": connectionData.Items.find(item => item.index == currentIndex),
+            "to": connectionData.Items.find(item => item.index == nextIndex)
+          })
+        }).promise();
+    else
+      return apigwManagementApi.postToConnection({
+        ConnectionId: connectionId,
+        Data: JSON.stringify({
+          "name": "not_your_turn",
+          "data": connectionData.Items,
+          "current": connectionData.Items.find(item => item.index == nextIndex),
+        })
+      }).promise();
+    }));
+  }
   return { statusCode: 200, body: 'Data sent.' };
 };
