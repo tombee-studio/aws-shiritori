@@ -10,6 +10,7 @@ const { TABLE_NAME } = process.env;
 exports.handler = async event => {
   let connectionFromId = event.requestContext.connectionId;
   let connectionData;
+  let langs = ['ja', 'en', 'it'];
 
   try {
     connectionData = await ddb.scan({
@@ -42,9 +43,23 @@ exports.handler = async event => {
 
   await ddb.update(params).promise();
 
+  var params = {
+    TableName: process.env.TABLE_NAME,
+    Key: {
+        "connectionId": connectionFromId
+    },
+    UpdateExpression: "set lang = :l",
+    ExpressionAttributeValues: {
+      ":l": langs[Math.floor(Math.random() * langs.length)]
+    },
+    ReturnValues:"UPDATED_NEW"
+  };
+
+  await ddb.update(params).promise();
+
   connectionData = await ddb.scan({
     TableName: TABLE_NAME,
-    ProjectionExpression: 'connectionId, #st, #idx',
+    ProjectionExpression: 'connectionId, #st, #idx, lang',
     ExpressionAttributeNames: {
       "#st": "status",
       "#idx": "index",
@@ -74,7 +89,7 @@ exports.handler = async event => {
 
   connectionData = await ddb.scan({
     TableName: TABLE_NAME,
-    ProjectionExpression: 'connectionId, #st, #idx',
+    ProjectionExpression: 'connectionId, #st, #idx, lang',
     ExpressionAttributeNames: {
       "#st": "status",
       "#idx": "index",
@@ -87,14 +102,18 @@ exports.handler = async event => {
         await apigwManagementApi.postToConnection({
           ConnectionId: connectionId,
           Data: JSON.stringify({
-            "name": "your_turn"
+            "name": "your_turn",
+            "data": connectionData.Items,
+            "from": connectionData.Items.find(item => item.index == 0),
+            "to": connectionData.Items.find(item => item.index == 1)
           })
         }).promise();
       } else {
         await apigwManagementApi.postToConnection({
           ConnectionId: connectionId,
           Data: JSON.stringify({
-            "name": "not_your_turn"
+            "name": "not_your_turn",
+            "data": connectionData.Items
           })
         }).promise();
       }

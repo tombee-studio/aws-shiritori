@@ -12,6 +12,7 @@ exports.handler = async event => {
       connectionId: event.requestContext.connectionId,
       status: "preparing",
       index: -1,
+      lang: ""
     }
   };
 

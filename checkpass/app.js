@@ -15,7 +15,7 @@ exports.handler = async event => {
   });
   let connectionData = await ddb.scan({
     TableName: TABLE_NAME,
-    ProjectionExpression: 'connectionId, #st, #idx',
+    ProjectionExpression: 'connectionId, #st, #idx, lang',
     ExpressionAttributeNames: {
       "#st": "status",
       "#idx": "index",
@@ -29,6 +29,7 @@ exports.handler = async event => {
       },
   }).promise();
 
+  let currentIndex = current.Item.index;
   let nextIndex = current.Item.index + 1 >= connectionData.Items.map(
     status => { return status == "ready"; }).length ? 0 : current.Item.index + 1;
 
@@ -37,14 +38,18 @@ exports.handler = async event => {
       return apigwManagementApi.postToConnection({
         ConnectionId: connectionId,
         Data: JSON.stringify({
-          "name": "your_turn"
+          "name": "your_turn",
+          "data": connectionData.Items,
+          "from": connectionData.Items.find(item => item.index == currentIndex),
+          "to": connectionData.Items.find(item => item.index == nextIndex)
         })
       }).promise();
     else
       return apigwManagementApi.postToConnection({
         ConnectionId: connectionId,
         Data: JSON.stringify({
-          "name": "not_your_turn"
+          "name": "not_your_turn",
+          "data": connectionData.Items
         })
       }).promise();
   }));
