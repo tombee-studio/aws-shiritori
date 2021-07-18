@@ -167,10 +167,6 @@ Resources:
       AttributeDefinitions:
       - AttributeName: "connectionId"
         AttributeType: "S"
-      - AttributeName: "status"
-        AttributeType: "S"
-      - AttributeName: "index"
-        AttributeType: "N"
       KeySchema:
       - AttributeName: "connectionId"
         KeyType: "HASH"
