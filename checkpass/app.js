@@ -80,9 +80,7 @@ exports.handler = async event => {
     await apigwManagementApi.postToConnection({
       ConnectionId: event.requestContext.connectionId,
       Data: JSON.stringify({
-        "name": "ok",
-        "word": v.word,
-        "translated": v.translated
+        "name": "ok"
       })
     }).promise();
     await Promise.all(connectionData.Items.map(({connectionId, index}) => {
@@ -93,7 +91,9 @@ exports.handler = async event => {
             "name": "your_turn",
             "data": connectionData.Items,
             "from": connectionData.Items.find(item => item.index == currentIndex),
-            "to": connectionData.Items.find(item => item.index == nextIndex)
+            "to": connectionData.Items.find(item => item.index == nextIndex),
+            "word": v.word,
+            "translated": v.translated
           })
         }).promise();
     else
@@ -103,6 +103,8 @@ exports.handler = async event => {
           "name": "not_your_turn",
           "data": connectionData.Items,
           "current": connectionData.Items.find(item => item.index == nextIndex),
+          "word": v.word,
+          "translated": v.translated
         })
       }).promise();
     }));
@@ -124,7 +126,9 @@ exports.handler = async event => {
             "name": "your_turn",
             "data": connectionData.Items,
             "from": connectionData.Items.find(item => item.index == currentIndex),
-            "to": connectionData.Items.find(item => item.index == nextIndex)
+            "to": connectionData.Items.find(item => item.index == nextIndex),
+            "word": v.word,
+            "translated": v.translated
           })
         }).promise();
     else
@@ -134,6 +138,8 @@ exports.handler = async event => {
           "name": "not_your_turn",
           "data": connectionData.Items,
           "current": connectionData.Items.find(item => item.index == nextIndex),
+          "word": v.word,
+          "translated": v.translated
         })
       }).promise();
     }));
