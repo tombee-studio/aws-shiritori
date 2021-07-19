@@ -9,7 +9,7 @@ Description: >
 Parameters:
   S3BucketName:
     Type: String
-    Default: 'multilingual-s3'
+    Default: 'multilingual-s3-2'
     Description: "S3 bucket to create."
     AllowedPattern: "[a-zA-Z][a-zA-Z0-9_-]*"
   TableName:
