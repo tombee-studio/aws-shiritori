@@ -7,10 +7,10 @@ const buffer = require('buffer');
 const ddb = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10', region: process.env.AWS_REGION });
 const s3 = new AWS.S3({apiVersion: '2012-08-10', region: process.env.AWS_REGION });
 
-const { TABLE_NAME, S3_BUCKET_NAME } = process.env;
+const { TABLE_NAME, S3_BUCKET_NAME, SHIRITORI_FUNCTION_NAME } = process.env;
 
 async function checkPassFunction(event) {
-  if(!event.backet || !event.filename || !event.target || !event.origin) 
+  if(!event.bucket || !event.filename || !event.target || !event.origin) 
     return "invaild arguments";
   const v = Math.floor(Math.random() * 100);
   
@@ -70,7 +70,7 @@ exports.handler = async event => {
   const data = await s3.upload(params).promise();
 
   const v = await checkPassFunction({
-    'backet': data.Bucket,
+    'bucket': data.Bucket,
     'filename': data.Key,
     'target': req.to.lang,
     'origin': req.from.lang,
