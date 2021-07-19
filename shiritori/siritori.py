@@ -1,3 +1,4 @@
+import os
 from pykakasi import kakasi
 import boto3
 import json
@@ -28,18 +29,19 @@ def change_json(bucket, key):
 
 def sound_to_word(bucket, filename, mylanguage):
     #.mp3をtranscribeで文章化
-    output_bucket = 'siritori'
+    output_bucket = os.environ['OUTPUT_BUCKET_NAME']
     dt_now = datetime.datetime.now()
     job_url = "s3://{}/{}".format(bucket, filename)
     transcribe = boto3.client('transcribe')
     job_name = str(dt_now.year)+str(dt_now.month)+str(dt_now.day)+"_"+str(dt_now.hour)+str(dt_now.minute)+str(dt_now.second)
 
+    print(job_url)
     transcribe.start_transcription_job(
         TranscriptionJobName=job_name,
         Media = {'MediaFileUri': job_url},
         MediaFormat = 'webm',  #wav, mp4, mp3
         LanguageCode = mylanguage,
-        OutputBucketName = output_bucket
+        OutputBucketName = os.environ['OUTPUT_BUCKET_NAME']
     )
     #文章化の作業が終わるまで待機
     while True:

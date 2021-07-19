@@ -7,14 +7,24 @@ Description: >
   functions needed to demonstrate the Websocket protocol on API Gateway.
 
 Parameters:
+  ShiritoriFunctionName:
+    Type: String
+    Default: 'ShiritoriFunction'
+    Description: "S3 bucket to create."
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9_-]*"
   S3BucketName:
     Type: String
-    Default: 'multilingual-s3-2'
+    Default: 'multilingual-s3-4'
+    Description: "S3 bucket to create."
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9_-]*"
+  OutputS3BucketName:
+    Type: String
+    Default: 'output'
     Description: "S3 bucket to create."
     AllowedPattern: "[a-zA-Z][a-zA-Z0-9_-]*"
   TableName:
     Type: String
-    Default: 'simplechat_connections'
+    Default: 'simplechat_connections_table'
     Description: (Required) The name of the new DynamoDB to store connection identifiers for each connected clients. Minimum 3 characters
     MinLength: 3
     MaxLength: 50
@@ -161,6 +171,15 @@ Resources:
         BlockPublicPolicy: False
         IgnorePublicAcls: False
         RestrictPublicBuckets: False
+  OutputS3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Ref OutputS3BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: False
+        BlockPublicPolicy: False
+        IgnorePublicAcls: False
+        RestrictPublicBuckets: False
   ConnectionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -278,11 +297,13 @@ Resources:
       CodeUri: checkpass/
       Handler: app.handler
       MemorySize: 256
+      Timeout: 900
       Runtime: nodejs12.x
       Environment:
         Variables:
           TABLE_NAME: !Ref TableName
           S3_BUCKET_NAME: !Ref S3BucketName
+          SHIRITORI_FUNCTION_NAME: !Ref ShiritoriFunctionName
       Policies:
       - DynamoDBCrudPolicy:
           TableName: !Ref TableName
@@ -292,6 +313,7 @@ Resources:
         - Effect: Allow
           Action:
           - 'execute-api:ManageConnections'
+          - 'lambda:InvokeFunction'
           Resource:
           - '*'
   CheckPassPermission:
@@ -302,6 +324,40 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !Ref CheckPassFunction
       Principal: apigateway.amazonaws.com
+  Shiritori:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: siritori.main
+      FunctionName: !Ref ShiritoriFunctionName
+      Runtime: python3.8
+      Environment:
+        Variables:
+          OUTPUT_BUCKET_NAME: !Ref OutputS3BucketName
+      CodeUri: shiritori/
+      Description: ''
+      MemorySize: 512
+      Timeout: 900
+      Policies:
+      - S3FullAccessPolicy:
+          BucketName: !Ref S3BucketName
+      - S3FullAccessPolicy:
+          BucketName: !Ref OutputS3BucketName
+      - Statement:
+        - Effect: Allow
+          Action:
+          - 'transcribe:*'
+          Resource:
+          - '*'
+        - Effect: Allow
+          Action:
+          - 'translate:*'
+          Resource:
+          - '*'
+        - Effect: Allow
+          Action: 's3:*Object*'
+          Resource: 
+          - !Sub 'arn:aws:s3:::${S3BucketName}/*'
+          - !Sub 'arn:aws:s3:::${OutputS3BucketName}/*'
 
 Outputs:
   ConnectionsTableArn:

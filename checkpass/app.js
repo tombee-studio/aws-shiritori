@@ -6,13 +6,29 @@ const buffer = require('buffer');
 
 const ddb = new AWS.DynamoDB.DocumentClient({ apiVersion: '2012-08-10', region: process.env.AWS_REGION });
 const s3 = new AWS.S3({apiVersion: '2012-08-10', region: process.env.AWS_REGION });
+const lambda = new AWS.Lambda({region: process.env.AWS_REGION});
 
 const { TABLE_NAME, S3_BUCKET_NAME, SHIRITORI_FUNCTION_NAME } = process.env;
 
-async function checkPassFunction(event) {
-  if(!event.bucket || !event.filename || !event.target || !event.origin) 
+async function checkPassFunction(src) {
+  if(!src.bucket || !src.filename || !src.target || !src.origin) 
     return "invaild arguments";
   const v = Math.floor(Math.random() * 100);
+
+  console.log('処理開始');
+  console.log(src);
+
+  const params = {
+    FunctionName: SHIRITORI_FUNCTION_NAME, // Lambda 関数の ARN を指定
+    InvocationType: "Event",
+    Payload: JSON.stringify(src)
+  };
+
+  lambda.invoke(params, (err, data) => {
+    console.log(data);
+  });
+  console.log('処理終了');
+  console.log(data);
   
   if(v == 99) {
       return {
